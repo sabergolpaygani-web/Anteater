@@ -56,9 +56,25 @@ jobs:
           PY
 
       - name: Build Anteater APK
+        id: build_apk
+        continue-on-error: true
         working-directory: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13
         run: |
-          gradle :app:assembleDebug --no-daemon
+          set -o pipefail
+          gradle :app:assembleDebug --no-daemon --stacktrace --info 2>&1 | tee build.log
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Anteater-Build-Log
+          path: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13/build.log
+
+      - name: Stop if build failed
+        if: steps.build_apk.outcome == 'failure'
+        run: |
+          echo "Anteater APK build failed."
+          exit 1
 
       - name: Prepare APK
         run: |
