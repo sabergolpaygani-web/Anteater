@@ -41,8 +41,15 @@ jobs:
       - name: Build Anteater APK
         working-directory: ${{ env.ANDROID_PROJECT }}
         run: |
-          set -o pipefail
           gradle :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
+          exit ${PIPESTATUS[0]}
+
+      - name: Show build error
+        if: failure()
+        run: |
+          echo "================ BUILD LOG ================"
+          cat "$GITHUB_WORKSPACE/build.log"
+          echo "============== END BUILD LOG =============="
 
       - name: Upload build log
         if: always()
