@@ -31,7 +31,7 @@ jobs:
 
       - name: Build Anteater APK
         id: build
-        continue-on-error: true
+        
         working-directory: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13
         run: |
           set +e
