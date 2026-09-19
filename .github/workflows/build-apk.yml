@@ -47,7 +47,6 @@ jobs:
                   sourceCompatibility = JavaVersion.VERSION_17
                   targetCompatibility = JavaVersion.VERSION_17
               }
-          }
           """
 
               s = s.replace("android {\n", insert, 1)
@@ -56,40 +55,24 @@ jobs:
           PY
 
       - name: Build Anteater APK
-        id: build_apk
-        continue-on-error: true
         working-directory: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13
         run: |
-          set -o pipefail
-          gradle :app:assembleDebug --no-daemon --stacktrace --info 2>&1 | tee build.log
-
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Anteater-Build-Log
-          path: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13/build.log
-
-      - name: Stop if build failed
-        if: steps.build_apk.outcome == 'failure'
-        run: |
-          echo "Anteater APK build failed."
-          exit 1
+          gradle :app:assembleDebug --no-daemon
 
       - name: Prepare APK
         run: |
           mkdir -p release
-          cp build-src/GlobalSpotVolume_Android_Accumulation_CEX_13/app/build/outputs/apk/debug/app-debug.apk release/Anteater-13.1.apk
+          cp build-src/GlobalSpotVolume_Android_Accumulation_CEX_13/app/build/outputs/apk/debug/app-debug.apk release/Anteater-14.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v13.1.${{ github.run_number }}"
-          name: "Anteater 13.1 - Build ${{ github.run_number }}"
+          tag_name: "v14.${{ github.run_number }}"
+          name: "Anteater 14 - Build ${{ github.run_number }}"
           body: |
-            Anteater 13.1 Android APK
+            Anteater 14 Android APK
 
             Spot accumulation scanner.
           files: |
-            release/Anteater-13.1.apk
+            release/Anteater-14.apk
           make_latest: true
