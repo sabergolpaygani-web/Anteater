@@ -48,30 +48,62 @@ jobs:
                   targetCompatibility = JavaVersion.VERSION_17
               }
           """
+
               s = s.replace("android {\n", insert, 1)
 
           p.write_text(s)
           PY
 
       - name: Build Anteater APK
+        id: build_apk
         working-directory: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13
         run: |
-          gradle :app:assembleDebug --no-daemon --stacktrace
+          set +e
+          gradle :app:assembleDebug --no-daemon --stacktrace --info 2>&1 | tee build.log
+          STATUS=${PIPESTATUS[0]}
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Show build error
+        if: always()
+        working-directory: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13
+        run: |
+          echo "================ BUILD LOG ================"
+          if [ -f build.log ]; then
+            tail -n 250 build.log
+          else
+            echo "build.log was not created."
+          fi
+          echo "============== END BUILD LOG =============="
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Anteater-build-log
+          path: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13/build.log
+          if-no-files-found: warn
+
+      - name: Stop if build failed
+        if: steps.build_apk.outputs.status != '0'
+        run: |
+          echo "Anteater APK build failed."
+          exit 1
 
       - name: Prepare APK
         run: |
           mkdir -p release
-          cp build-src/GlobalSpotVolume_Android_Accumulation_CEX_13/app/build/outputs/apk/debug/app-debug.apk release/Anteater-15.apk
+          cp build-src/GlobalSpotVolume_Android_Accumulation_CEX_13/app/build/outputs/apk/debug/app-debug.apk release/Anteater-13.1.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v15.${{ github.run_number }}"
-          name: "Anteater 15 - Build ${{ github.run_number }}"
+          tag_name: "v13.1.${{ github.run_number }}"
+          name: "Anteater 13.1 - Build ${{ github.run_number }}"
           body: |
-            Anteater 15 Android APK
+            Anteater 13.1 Android APK
 
             Spot accumulation scanner.
           files: |
-            release/Anteater-15.apk
+            release/Anteater-13.1.apk
           make_latest: true
