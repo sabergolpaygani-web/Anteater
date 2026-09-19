@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -31,6 +32,11 @@ jobs:
         run: |
           rm -rf build-src
           unzip -q Anteater_15.zip -d build-src
+
+      - name: Find Android project
+        run: |
+          echo "Searching for Android project..."
+          find build-src -name "build.gradle.kts" -o -name "settings.gradle.kts"
 
       - name: Fix JVM target compatibility
         working-directory: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13
@@ -59,22 +65,43 @@ jobs:
         working-directory: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13
         run: |
           set +e
-          gradle :app:assembleDebug --no-daemon --stacktrace --info 2>&1 | tee build.log
-          STATUS=${PIPESTATUS[0]}
-          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
-          exit 0
 
-      - name: Show build error
-        if: always()
-        working-directory: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13
-        run: |
-          echo "================ BUILD LOG ================"
-          if [ -f build.log ]; then
-            tail -n 250 build.log
-          else
-            echo "build.log was not created."
-          fi
-          echo "============== END BUILD LOG =============="
+          echo "========================================"
+          echo "STARTING ANTEATER GRADLE BUILD"
+          echo "========================================"
+
+          gradle :app:assembleDebug --no-daemon --stacktrace --console=plain > build.log 2>&1
+
+          STATUS=$?
+
+          echo ""
+          echo "========================================"
+          echo "GRADLE BUILD RESULT"
+          echo "========================================"
+          echo "Exit code: $STATUS"
+          echo ""
+
+          echo "========================================"
+          echo "IMPORTANT BUILD ERRORS"
+          echo "========================================"
+
+          grep -E "FAILURE:|What went wrong:|Execution failed|Caused by:|error:|e: " build.log | tail -n 100 || true
+
+          echo ""
+          echo "========================================"
+          echo "LAST 100 LOG LINES"
+          echo "========================================"
+
+          tail -n 100 build.log || true
+
+          echo ""
+          echo "========================================"
+          echo "END BUILD LOG"
+          echo "========================================"
+
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+
+          exit 0
 
       - name: Upload build log
         if: always()
@@ -87,15 +114,17 @@ jobs:
       - name: Stop if build failed
         if: steps.build_apk.outputs.status != '0'
         run: |
-          echo "Anteater APK build failed."
+          echo "::error title=Anteater Gradle Build Failed::The Gradle build failed. The detailed error was printed by the Build Anteater APK step."
           exit 1
 
       - name: Prepare APK
+        if: steps.build_apk.outputs.status == '0'
         run: |
           mkdir -p release
           cp build-src/GlobalSpotVolume_Android_Accumulation_CEX_13/app/build/outputs/apk/debug/app-debug.apk release/Anteater-13.1.apk
 
       - name: Create GitHub Release
+        if: steps.build_apk.outputs.status == '0'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v13.1.${{ github.run_number }}"
