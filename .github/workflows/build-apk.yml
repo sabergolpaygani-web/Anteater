@@ -5,6 +5,9 @@ on:
   push:
     branches: ["main"]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -28,6 +31,7 @@ jobs:
         run: |
           rm -rf build-src
           unzip -q Anteater_13.1_Cloud_eslahi.zip -d build-src
+
       - name: Fix JVM target compatibility
         working-directory: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13
         run: |
@@ -37,9 +41,7 @@ jobs:
           p = Path("app/build.gradle.kts")
           s = p.read_text()
 
-          marker = "sourceCompatibility = JavaVersion.VERSION_17"
-
-          if marker not in s:
+          if "sourceCompatibility = JavaVersion.VERSION_17" not in s:
               insert = """android {
               compileOptions {
                   sourceCompatibility = JavaVersion.VERSION_17
@@ -51,39 +53,26 @@ jobs:
 
           p.write_text(s)
           PY
+
       - name: Build Anteater APK
-        id: build
-        
         working-directory: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13
         run: |
-          set +e
-          gradle :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
-          STATUS=${PIPESTATUS[0]}
-          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
-          echo "### Gradle build output" >> "$GITHUB_STEP_SUMMARY"
-          echo '```text' >> "$GITHUB_STEP_SUMMARY"
-          head -n 180 build.log >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          exit 0
+          gradle :app:assembleDebug --no-daemon
 
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Anteater-build-log
-          path: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13/build.log
-          if-no-files-found: warn
-
-      - name: Fail if build failed
-        if: steps.build.outputs.status != '0'
+      - name: Prepare APK
         run: |
-          echo "Anteater build failed."
-          exit 1
+          mkdir -p release
+          cp build-src/GlobalSpotVolume_Android_Accumulation_CEX_13/app/build/outputs/apk/debug/app-debug.apk release/Anteater-13.1.apk
 
-      - name: Upload APK
-        if: steps.build.outputs.status == '0'
-        uses: actions/upload-artifact@v4
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: Anteater-13.1-APK
-          path: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          tag_name: "v13.1.${{ github.run_number }}"
+          name: "Anteater 13.1 - Build ${{ github.run_number }}"
+          body: |
+            Anteater 13.1 Android APK
+
+            Spot accumulation scanner.
+          files: |
+            release/Anteater-13.1.apk
+          make_latest: true
