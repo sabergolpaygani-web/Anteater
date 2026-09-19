@@ -3,7 +3,7 @@ name: Build Anteater APK
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build:
@@ -14,21 +14,32 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.13'
+          gradle-version: "8.13"
 
-      - name: Build APK
-        run: gradle :app:assembleDebug --no-daemon
+      - name: Extract Anteater project
+        run: |
+          rm -rf build-src
+          mkdir build-src
+          unzip -q Anteater_13.1_Cloud_Build.zip -d build-src
+          echo "Project files:"
+          find build-src -maxdepth 3 -type f | sort
+
+      - name: Build Anteater APK
+        working-directory: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13
+        run: |
+          gradle :app:assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Anteater-13.1-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
