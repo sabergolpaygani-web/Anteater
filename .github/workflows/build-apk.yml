@@ -30,7 +30,7 @@ jobs:
       - name: Extract Anteater project
         run: |
           rm -rf build-src
-          unzip -q Anteater_13.1_Cloud_eslahi.zip -d build-src
+          Anteater_14.zip
 
       - name: Fix JVM target compatibility
         working-directory: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13
