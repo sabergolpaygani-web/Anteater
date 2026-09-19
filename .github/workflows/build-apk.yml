@@ -13,7 +13,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -35,104 +34,43 @@ jobs:
 
       - name: Find Android project
         run: |
-          echo "Searching for Android project..."
-          find build-src -name "build.gradle.kts" -o -name "settings.gradle.kts"
-
-      - name: Fix JVM target compatibility
-        working-directory: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          p = Path("app/build.gradle.kts")
-          s = p.read_text()
-
-          if "sourceCompatibility = JavaVersion.VERSION_17" not in s:
-              insert = """android {
-              compileOptions {
-                  sourceCompatibility = JavaVersion.VERSION_17
-                  targetCompatibility = JavaVersion.VERSION_17
-              }
-          """
-
-              s = s.replace("android {\n", insert, 1)
-
-          p.write_text(s)
-          PY
+          PROJECT_DIR="$(find build-src -type f -name settings.gradle.kts -print -quit | xargs dirname)"
+          echo "ANDROID_PROJECT=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Android project: $PROJECT_DIR"
 
       - name: Build Anteater APK
-        id: build_apk
-        working-directory: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13
+        working-directory: ${{ env.ANDROID_PROJECT }}
         run: |
-          set +e
-
-          echo "========================================"
-          echo "STARTING ANTEATER GRADLE BUILD"
-          echo "========================================"
-
-          gradle :app:assembleDebug --no-daemon --stacktrace --console=plain > build.log 2>&1
-
-          STATUS=$?
-
-          echo ""
-          echo "========================================"
-          echo "GRADLE BUILD RESULT"
-          echo "========================================"
-          echo "Exit code: $STATUS"
-          echo ""
-
-          echo "========================================"
-          echo "IMPORTANT BUILD ERRORS"
-          echo "========================================"
-
-          grep -E "FAILURE:|What went wrong:|Execution failed|Caused by:|error:|e: " build.log | tail -n 100 || true
-
-          echo ""
-          echo "========================================"
-          echo "LAST 100 LOG LINES"
-          echo "========================================"
-
-          tail -n 100 build.log || true
-
-          echo ""
-          echo "========================================"
-          echo "END BUILD LOG"
-          echo "========================================"
-
-          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
-
-          exit 0
+          set -o pipefail
+          gradle :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
 
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Anteater-build-log
-          path: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13/build.log
+          name: anteater-build-log
+          path: build.log
           if-no-files-found: warn
 
-      - name: Stop if build failed
-        if: steps.build_apk.outputs.status != '0'
-        run: |
-          echo "::error title=Anteater Gradle Build Failed::The Gradle build failed. The detailed error was printed by the Build Anteater APK step."
-          exit 1
-
       - name: Prepare APK
-        if: steps.build_apk.outputs.status == '0'
+        if: success()
         run: |
           mkdir -p release
-          cp build-src/GlobalSpotVolume_Android_Accumulation_CEX_13/app/build/outputs/apk/debug/app-debug.apk release/Anteater-13.1.apk
+          cp "${{ env.ANDROID_PROJECT }}/app/build/outputs/apk/debug/app-debug.apk" \
+             "release/Anteater-13.1.apk"
+
+      - name: Upload APK artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Anteater-13.1-APK
+          path: release/Anteater-13.1.apk
 
       - name: Create GitHub Release
-        if: steps.build_apk.outputs.status == '0'
+        if: success()
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v13.1.${{ github.run_number }}"
-          name: "Anteater 13.1 - Build ${{ github.run_number }}"
-          body: |
-            Anteater 13.1 Android APK
-
-            Spot accumulation scanner.
-          files: |
-            release/Anteater-13.1.apk
-          make_latest: true
+          tag_name: anteater-13.1-${{ github.run_number }}
+          name: Anteater 13.1 - Build ${{ github.run_number }}
+          files: release/Anteater-13.1.apk
+          generate_release_notes: false
