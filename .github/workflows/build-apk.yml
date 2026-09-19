@@ -30,7 +30,7 @@ jobs:
       - name: Extract Anteater project
         run: |
           rm -rf build-src
-          unzip -q Anteater_14.zip -d build-src
+          unzip -q Anteater_14_New.zip -d build-src
 
       - name: Fix JVM target compatibility
         working-directory: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13
@@ -47,6 +47,7 @@ jobs:
                   sourceCompatibility = JavaVersion.VERSION_17
                   targetCompatibility = JavaVersion.VERSION_17
               }
+          }
           """
 
               s = s.replace("android {\n", insert, 1)
