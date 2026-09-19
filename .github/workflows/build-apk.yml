@@ -28,7 +28,29 @@ jobs:
         run: |
           rm -rf build-src
           unzip -q Anteater_13.1_Cloud_eslahi.zip -d build-src
+      - name: Fix JVM target compatibility
+        working-directory: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
 
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
+
+          marker = "sourceCompatibility = JavaVersion.VERSION_17"
+
+          if marker not in s:
+              insert = """android {
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+          """
+
+              s = s.replace("android {\n", insert, 1)
+
+          p.write_text(s)
+          PY
       - name: Build Anteater APK
         id: build
         
