@@ -30,7 +30,7 @@ jobs:
       - name: Extract Anteater project
         run: |
           rm -rf build-src
-          unzip -q Anteater_14_New.zip -d build-src
+          unzip -q Anteater_15.zip -d build-src
 
       - name: Fix JVM target compatibility
         working-directory: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13
@@ -48,7 +48,6 @@ jobs:
                   targetCompatibility = JavaVersion.VERSION_17
               }
           """
-
               s = s.replace("android {\n", insert, 1)
 
           p.write_text(s)
@@ -57,22 +56,22 @@ jobs:
       - name: Build Anteater APK
         working-directory: build-src/GlobalSpotVolume_Android_Accumulation_CEX_13
         run: |
-          gradle :app:assembleDebug --no-daemon
+          gradle :app:assembleDebug --no-daemon --stacktrace
 
       - name: Prepare APK
         run: |
           mkdir -p release
-          cp build-src/GlobalSpotVolume_Android_Accumulation_CEX_13/app/build/outputs/apk/debug/app-debug.apk release/Anteater-14.apk
+          cp build-src/GlobalSpotVolume_Android_Accumulation_CEX_13/app/build/outputs/apk/debug/app-debug.apk release/Anteater-15.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v14.${{ github.run_number }}"
-          name: "Anteater 14 - Build ${{ github.run_number }}"
+          tag_name: "v15.${{ github.run_number }}"
+          name: "Anteater 15 - Build ${{ github.run_number }}"
           body: |
-            Anteater 14 Android APK
+            Anteater 15 Android APK
 
             Spot accumulation scanner.
           files: |
-            release/Anteater-14.apk
+            release/Anteater-15.apk
           make_latest: true
