@@ -26,44 +26,199 @@ jobs:
           java-version: "17"
 
 
-      - name: Setup Gradle
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+
+
+      - name: Extract Anteater project
+        run: |
+          set -e
+
+          echo "Checking repository files..."
+          ls -lah
+
+          if [ ! -f "Anteater_15.zip" ]; then
+            echo "::error::Anteater_15.zip not found"
+            exit 1
+          fi
+
+          rm -rf build-src
+          mkdir -p build-src
+
+          echo "Extracting Anteater_15.zip..."
+          unzip -q "Anteater_15.zip" -d build-src
+
+          echo ""
+          echo "Extracted files:"
+          find build-src -maxdepth 4 -type f | head -100
 
 
       - name: Find Android project
         run: |
-          echo "Searching gradlew..."
-          find . -name gradlew -type f
+          set -e
 
+          SETTINGS_FILE=$(find build-src \
+            -type f \
+            -name "settings.gradle.kts" \
+            -print -quit)
 
-      - name: Build APK
-        run: |
-          GRADLEW=$(find . -name gradlew -type f | head -n 1)
-
-          if [ -z "$GRADLEW" ]; then
-            echo "::error::gradlew not found"
+          if [ -z "$SETTINGS_FILE" ]; then
+            echo "::error::settings.gradle.kts was not found"
             exit 1
           fi
 
-          echo "Using: $GRADLEW"
+          ANDROID_PROJECT=$(dirname "$SETTINGS_FILE")
 
-          chmod +x "$GRADLEW"
+          echo "Android project found:"
+          echo "$ANDROID_PROJECT"
 
-          PROJECT_DIR=$(dirname "$GRADLEW")
-
-          cd "$PROJECT_DIR"
-
-          ./gradlew assembleRelease
+          echo "ANDROID_PROJECT=$ANDROID_PROJECT" >> "$GITHUB_ENV"
 
 
-      - name: Find APK
+      - name: Check Android project
         run: |
-          echo "Searching APK..."
-          find . -name "*.apk" -type f
+          set -e
+
+          echo "======================================"
+          echo "ANDROID PROJECT"
+          echo "======================================"
+
+          cd "$ANDROID_PROJECT"
+
+          pwd
+
+          echo ""
+          echo "Project files:"
+          find . -maxdepth 3 -type f | sort
+
+
+      - name: Build Anteater APK
+        run: |
+          set +e
+
+          cd "$ANDROID_PROJECT"
+
+          echo "======================================"
+          echo "GRADLE VERSION"
+          echo "======================================"
+
+          gradle --version
+
+          echo ""
+          echo "======================================"
+          echo "BUILDING ANTEATER"
+          echo "======================================"
+
+          gradle :app:assembleDebug \
+            --no-daemon \
+            --stacktrace \
+            2>&1 | tee "$GITHUB_WORKSPACE/build.log"
+
+          BUILD_EXIT=${PIPESTATUS[0]}
+
+          echo ""
+          echo "======================================"
+          echo "GRADLE EXIT CODE: $BUILD_EXIT"
+          echo "======================================"
+
+          echo "BUILD_EXIT=$BUILD_EXIT" >> "$GITHUB_ENV"
+
+          exit 0
+
+
+      - name: Show build error
+        if: always()
+        run: |
+          echo "======================================"
+          echo "BUILD DIAGNOSTIC"
+          echo "======================================"
+
+          if [ -f "$GITHUB_WORKSPACE/build.log" ]; then
+
+            echo ""
+            echo "===== IMPORTANT ERROR LINES ====="
+
+            grep -Ei \
+              "FAILURE:|Execution failed|What went wrong|Caused by:|e: |error:|Unresolved reference|Type mismatch|Could not resolve|Could not find|Compilation error|FAILED|Exception" \
+              "$GITHUB_WORKSPACE/build.log" \
+              | tail -80 \
+              || true
+
+            echo ""
+            echo "===== LAST 80 LINES ====="
+
+            tail -80 "$GITHUB_WORKSPACE/build.log"
+
+          else
+            echo "::error::build.log was not created"
+          fi
+
+
+      - name: Find generated APK
+        if: always()
+        run: |
+          echo "======================================"
+          echo "SEARCHING FOR APK"
+          echo "======================================"
+
+          find build-src \
+            -type f \
+            -name "*.apk" \
+            -print \
+            || true
+
+
+      - name: Stop if Gradle failed
+        if: always()
+        run: |
+          echo "Gradle exit code: ${BUILD_EXIT:-unknown}"
+
+          if [ "${BUILD_EXIT:-1}" -ne 0 ]; then
+            echo "::error::Gradle build failed"
+            exit "${BUILD_EXIT}"
+          fi
+
+
+      - name: Prepare APK
+        if: success()
+        run: |
+          set -e
+
+          mkdir -p release
+
+          APK=$(find "$ANDROID_PROJECT" \
+            -type f \
+            -name "app-debug.apk" \
+            -print -quit)
+
+          if [ -z "$APK" ]; then
+            echo "::error::APK was not generated"
+            exit 1
+          fi
+
+          echo "APK found:"
+          echo "$APK"
+
+          cp "$APK" "release/Anteater.apk"
+
+          ls -lh release/Anteater.apk
 
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Anteater-APK
-          path: "**/*.apk"
+          path: release/Anteater.apk
+
+
+      - name: Create GitHub Release
+        if: success()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: anteater-${{ github.run_number }}
+          name: Anteater APK - Build ${{ github.run_number }}
+          files: release/Anteater.apk
+          generate_release_notes: false
