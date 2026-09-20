@@ -3,11 +3,9 @@ name: Build Anteater APK
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
-
-permissions:
-  contents: write
+    paths:
+      - "*.zip"
+      - ".github/workflows/build-apk.yml"
 
 jobs:
   build:
@@ -15,279 +13,236 @@ jobs:
 
     steps:
 
-      - name: Checkout
+      # -----------------------------
+      # 1. دریافت Repository
+      # -----------------------------
+      - name: Checkout repository
         uses: actions/checkout@v4
 
+
+      # -----------------------------
+      # 2. Java 17
+      # -----------------------------
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Gradle
+
+      # -----------------------------
+      # 3. Gradle 8.13
+      # -----------------------------
+      - name: Set up Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.13"
 
-      - name: Extract Anteater project
+
+      # -----------------------------
+      # 4. پیدا کردن ZIP پروژه
+      #
+      # اول Anteater_15_FIXED.zip
+      # اگر نبود Anteater_15.zip
+      # -----------------------------
+      - name: Find and extract Anteater source
+        shell: bash
         run: |
           set -e
+
+          ZIP=""
+
+          if [ -f "Anteater_15_FIXED.zip" ]; then
+            ZIP="Anteater_15_FIXED.zip"
+
+          elif [ -f "Anteater_15.zip" ]; then
+            ZIP="Anteater_15.zip"
+
+          else
+            ZIP="$(find . -maxdepth 2 -type f -name 'Anteater_15*.zip' | head -n 1)"
+          fi
+
+          if [ -z "$ZIP" ]; then
+            echo "ERROR: Anteater source ZIP not found."
+            exit 1
+          fi
+
+          echo "Using source ZIP: $ZIP"
 
           rm -rf build-src
           mkdir -p build-src
 
-          if [ ! -f "Anteater_15.zip" ]; then
-            echo "::error::Anteater_15.zip not found"
+          unzip -q "$ZIP" -d build-src
+
+          PROJECT_DIR="$(find build-src \
+            -type f \
+            -name 'settings.gradle.kts' \
+            -print -quit | xargs -r dirname)"
+
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERROR: settings.gradle.kts not found."
             exit 1
           fi
 
-          unzip -q "Anteater_15.zip" -d build-src
+          echo "Project directory:"
+          echo "$PROJECT_DIR"
 
-          echo "===== EXTRACTED PROJECT ====="
-          find build-src -maxdepth 4 -type f | sort | head -200
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-      - name: Find Android project
+
+      # -----------------------------
+      # 5. بررسی فایل‌های پروژه
+      # -----------------------------
+      - name: Check project
+        shell: bash
         run: |
           set -e
 
-          SETTINGS_FILE=$(find build-src -type f -name "settings.gradle.kts" -print -quit)
+          cd "$PROJECT_DIR"
 
-          if [ -z "$SETTINGS_FILE" ]; then
-            echo "::error::settings.gradle.kts not found"
-            exit 1
-          fi
+          test -f settings.gradle.kts
+          test -f build.gradle.kts
+          test -f app/build.gradle.kts
+          test -f app/src/main/java/com/example/spotvolume/MainActivity.kt
 
-          ANDROID_PROJECT=$(dirname "$SETTINGS_FILE")
+          echo "Project structure OK."
 
-          echo "Android project:"
-          echo "$ANDROID_PROJECT"
 
-          echo "ANDROID_PROJECT=$ANDROID_PROJECT" >> "$GITHUB_ENV"
-
-      - name: Check Android project
+      # -----------------------------
+      # 6. هماهنگ کردن JVM
+      # -----------------------------
+      - name: Fix JVM target
+        shell: bash
         run: |
-          set -e
+          cd "$PROJECT_DIR"
 
-          cd "$ANDROID_PROJECT"
+          python3 - <<'PY'
+          from pathlib import Path
 
-          echo "===== PROJECT ====="
-          pwd
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
 
-          echo "===== FILES ====="
-          find . -maxdepth 4 -type f | sort
+          # Kotlin JVM 17
+          if "jvmToolchain(17)" not in s:
+              s = s.replace(
+                  "android {",
+                  """kotlin {
+              jvmToolchain(17)
+          }
 
-          echo "===== BUILD GRADLE ====="
-          cat build.gradle.kts
+          android {""",
+                  1
+              )
 
-          echo "===== APP BUILD GRADLE ====="
-          cat app/build.gradle.kts
+          # Java JVM 17
+          if "sourceCompatibility = JavaVersion.VERSION_17" not in s:
+              s = s.replace(
+                  "android {",
+                  """android {
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }""",
+                  1
+              )
 
-      - name: Build Anteater APK
+          p.write_text(s)
+
+          print("JVM target fixed.")
+          PY
+
+
+      # -----------------------------
+      # 7. ساخت APK
+      # -----------------------------
+      - name: Build debug APK
         id: gradle_build
         continue-on-error: true
+        shell: bash
         run: |
-          cd "$ANDROID_PROJECT"
-
-          rm -f "$GITHUB_WORKSPACE/gradle-build.log"
-
-          echo "========================================"
-          echo "STARTING GRADLE BUILD"
-          echo "========================================"
+          cd "$PROJECT_DIR"
 
           gradle :app:assembleDebug \
             --no-daemon \
             --stacktrace \
-            --info \
-            --console=plain \
-            > "$GITHUB_WORKSPACE/gradle-build.log" 2>&1
+            2>&1 | tee "$GITHUB_WORKSPACE/gradle-build.log"
 
-          EXIT_CODE=$?
+          exit ${PIPESTATUS[0]}
 
-          echo ""
-          echo "========================================"
-          echo "GRADLE EXIT CODE: $EXIT_CODE"
-          echo "========================================"
 
-          echo "$EXIT_CODE" > "$GITHUB_WORKSPACE/gradle-exit-code.txt"
-
-          exit 0
-
-      - name: Extract exact Gradle error
-        if: always()
+      # -----------------------------
+      # 8. نمایش خطای دقیق در Summary
+      # -----------------------------
+      - name: Put Gradle error in Summary
+        if: steps.gradle_build.outcome == 'failure'
+        shell: bash
         run: |
-          LOG="$GITHUB_WORKSPACE/gradle-build.log"
-
-          echo "========================================"
-          echo "GRADLE DIAGNOSTIC"
-          echo "========================================"
-
-          if [ ! -f "$LOG" ]; then
-            echo "::error::gradle-build.log was not created"
-            exit 0
-          fi
-
-          EXIT_CODE=$(cat "$GITHUB_WORKSPACE/gradle-exit-code.txt" 2>/dev/null || echo "unknown")
-
-          echo "Gradle exit code: $EXIT_CODE"
-
-          echo ""
-          echo "========================================"
-          echo "LAST 120 LINES"
-          echo "========================================"
-
-          tail -120 "$LOG"
-
-          echo ""
-          echo "========================================"
-          echo "IMPORTANT ERROR LINES"
-          echo "========================================"
-
-          grep -Ei \
-            "FAILURE:|What went wrong:|Execution failed|Caused by:|error:|e: |Unresolved reference|Type mismatch|Could not resolve|Could not find|Compilation error|FAILED|Exception" \
-            "$LOG" \
-            | tail -80 \
-            || true
-
-      - name: Put exact error in GitHub Summary
-        if: always()
-        run: |
-          LOG="$GITHUB_WORKSPACE/gradle-build.log"
 
           echo "# Anteater Gradle Build Diagnostic" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-
-          if [ -f "$GITHUB_WORKSPACE/gradle-exit-code.txt" ]; then
-            echo "**Gradle exit code:** $(cat "$GITHUB_WORKSPACE/gradle-exit-code.txt")" >> "$GITHUB_STEP_SUMMARY"
-          fi
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
+
           echo "## Exact Gradle error" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
+
           echo '```text' >> "$GITHUB_STEP_SUMMARY"
 
-          if [ -f "$LOG" ]; then
-            grep -Ei \
-              "FAILURE:|What went wrong:|Execution failed|Caused by:|error:|e: |Unresolved reference|Type mismatch|Could not resolve|Could not find|Compilation error|FAILED|Exception" \
-              "$LOG" \
-              | tail -100 \
-              >> "$GITHUB_STEP_SUMMARY" \
-              || true
-          else
-            echo "Build log not found." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          grep -E \
+            -A 40 \
+            -B 10 \
+            "What went wrong|Execution failed|Compilation error|e: file:|Caused by:" \
+            gradle-build.log \
+            | tail -n 160 \
+            >> "$GITHUB_STEP_SUMMARY" \
+            || tail -n 160 gradle-build.log \
+            >> "$GITHUB_STEP_SUMMARY"
 
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "## Last 80 lines" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo '```text' >> "$GITHUB_STEP_SUMMARY"
 
-          if [ -f "$LOG" ]; then
-            tail -80 "$LOG" >> "$GITHUB_STEP_SUMMARY"
-          fi
+      # -----------------------------
+      # 9. اگر Build شکست خورد متوقف شود
+      # -----------------------------
+      - name: Stop if build failed
+        if: steps.gradle_build.outcome == 'failure'
+        run: exit 1
 
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Show error as annotations
-        if: always()
-        run: |
-          LOG="$GITHUB_WORKSPACE/gradle-build.log"
-
-          if [ ! -f "$LOG" ]; then
-            echo "::error::Gradle build log was not created."
-            exit 0
-          fi
-
-          echo "========================================"
-          echo "CREATING ERROR ANNOTATIONS"
-          echo "========================================"
-
-          ERRORS=$(grep -Ei \
-            "FAILURE:|What went wrong:|Execution failed|Caused by:|error:|e: |Unresolved reference|Type mismatch|Could not resolve|Could not find|Compilation error|FAILED|Exception" \
-            "$LOG" \
-            | tail -20 \
-            || true)
-
-          if [ -z "$ERRORS" ]; then
-            echo "::error::Gradle failed, but no standard error pattern was detected."
-            echo "::error::Check the Gradle diagnostic section in the Summary."
-          else
-            while IFS= read -r line; do
-              SAFE_LINE=$(echo "$line" | tr '\r\n' ' ' | cut -c1-900)
-              echo "::error title=Gradle Build Error::$SAFE_LINE"
-            done <<< "$ERRORS"
-          fi
-
-      - name: Upload Gradle diagnostic
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Anteater-Gradle-Diagnostic
-          path: |
-            gradle-build.log
-            gradle-exit-code.txt
-          if-no-files-found: warn
-
-      - name: Find generated APK
-        if: always()
-        run: |
-          echo "===== APK SEARCH ====="
-
-          find "$ANDROID_PROJECT" \
-            -type f \
-            -name "*.apk" \
-            -print \
-            || true
-
-      - name: Stop if Gradle failed
-        if: always()
-        run: |
-          EXIT_CODE=$(cat "$GITHUB_WORKSPACE/gradle-exit-code.txt" 2>/dev/null || echo "1")
-
-          echo "Gradle exit code: $EXIT_CODE"
-
-          if [ "$EXIT_CODE" != "0" ]; then
-            echo "::error title=Anteater Build Failed::Gradle failed with exit code $EXIT_CODE. Open the Summary section for the exact error."
-            exit 1
-          fi
-
+      # -----------------------------
+      # 10. پیدا کردن APK
+      # -----------------------------
       - name: Prepare APK
-        if: success()
+        shell: bash
         run: |
+
           set -e
 
-          mkdir -p release
-
-          APK=$(find "$ANDROID_PROJECT" \
+          APK="$(find \
+            "$PROJECT_DIR/app/build/outputs/apk" \
             -type f \
-            -name "app-debug.apk" \
-            -print -quit)
+            -name '*.apk' \
+            | head -n 1)"
 
           if [ -z "$APK" ]; then
-            echo "::error::APK was not generated"
+            echo "ERROR: APK not found."
             exit 1
           fi
 
           echo "APK found:"
           echo "$APK"
 
-          cp "$APK" "release/Anteater.apk"
+          mkdir -p release
+
+          cp "$APK" release/Anteater.apk
 
           ls -lh release/Anteater.apk
 
+
+      # -----------------------------
+      # 11. قرار دادن APK در Artifacts
+      # -----------------------------
       - name: Upload APK
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Anteater-APK
           path: release/Anteater.apk
-
-      - name: Create GitHub Release
-        if: success()
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: anteater-${{ github.run_number }}
-          name: Anteater APK - Build ${{ github.run_number }}
-          files: release/Anteater.apk
-          generate_release_notes: false
+          if-no-files-found: error
