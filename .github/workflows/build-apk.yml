@@ -3,7 +3,8 @@ name: Build Anteater APK
 on:
   workflow_dispatch:
   push:
-    branches: ["main"]
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -22,62 +23,24 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Gradle
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.13"
-
-      - name: Extract Anteater project
-        run: |
-          rm -rf build-src
-          unzip -q Anteater_15.zip -d build-src
 
       - name: Find Android project
         run: |
-          PROJECT_DIR="$(find build-src -type f -name settings.gradle.kts -print -quit | xargs dirname)"
-          echo "ANDROID_PROJECT=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Android project: $PROJECT_DIR"
+          find . -name gradlew -type f
 
-      - name: Build Anteater APK
-        working-directory: ${{ env.ANDROID_PROJECT }}
+      - name: Build APK
         run: |
-          gradle :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
-          exit ${PIPESTATUS[0]}
+          chmod +x ./gradlew
+          ./gradlew assembleRelease
 
-      - name: Show build error
-        if: failure()
+      - name: Find APK
         run: |
-          echo "================ BUILD LOG ================"
-          cat "$GITHUB_WORKSPACE/build.log"
-          echo "============== END BUILD LOG =============="
+          find . -name "*.apk"
 
-      - name: Upload build log
-        if: always()
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: anteater-build-log
-          path: build.log
-          if-no-files-found: warn
-
-      - name: Prepare APK
-        if: success()
-        run: |
-          mkdir -p release
-          cp "${{ env.ANDROID_PROJECT }}/app/build/outputs/apk/debug/app-debug.apk" \
-             "release/Anteater-13.1.apk"
-
-      - name: Upload APK artifact
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Anteater-13.1-APK
-          path: release/Anteater-13.1.apk
-
-      - name: Create GitHub Release
-        if: success()
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: anteater-13.1-${{ github.run_number }}
-          name: Anteater 13.1 - Build ${{ github.run_number }}
-          files: release/Anteater-13.1.apk
-          generate_release_notes: false
+          name: Anteater-APK
+          path: "**/*.apk"
