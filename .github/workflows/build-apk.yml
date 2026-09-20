@@ -24,6 +24,21 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 36
+        shell: bash
+        run: |
+          set -e
+
+          yes | sdkmanager --licenses >/dev/null || true
+
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0"
+
       - name: Set up Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -32,12 +47,11 @@ jobs:
       # ---------------------------------------------------------
       # Extract ONLY Anteater_23_FINAL.zip
       # ---------------------------------------------------------
+
       - name: Extract Anteater v23
         shell: bash
         run: |
           set -e
-
-          echo "Checking Anteater_23_FINAL.zip..."
 
           test -f Anteater_23_FINAL.zip
 
@@ -46,69 +60,72 @@ jobs:
 
           unzip -q Anteater_23_FINAL.zip -d anteater_build
 
-          echo "Extracted files:"
-          find anteater_build -maxdepth 4 -type f | sort
+          echo "Anteater v23 extracted."
 
       # ---------------------------------------------------------
-      # Verify that the correct source was extracted
+      # Verify source
       # ---------------------------------------------------------
+
       - name: Verify Anteater v23 source
         shell: bash
         run: |
           set -e
 
-          echo "Checking required project files..."
-
+          test -f anteater_build/settings.gradle.kts
+          test -f anteater_build/build.gradle.kts
           test -f anteater_build/app/build.gradle.kts
           test -f anteater_build/app/src/main/AndroidManifest.xml
           test -f anteater_build/app/src/main/java/com/example/spotvolume/MainActivity.kt
 
-          echo "Checking Anteater branding..."
-
           grep -R "Anteater" anteater_build/app/src/main
-
-          echo "Checking AUTO SCAN..."
-
           grep -R "AUTO SCAN" anteater_build/app/src/main/java
-
-          echo "Checking NET SPOT ACCUMULATION..."
-
-          grep -R "NET SPOT ACCUMULATION" \
-            anteater_build/app/src/main/java
-
-          echo "Checking background service..."
-
-          grep -R "AnteaterScanService" \
-            anteater_build/app/src/main/java
-
-          echo "Checking version 23.0..."
-
+          grep -R "NET SPOT ACCUMULATION" anteater_build/app/src/main/java
+          grep -R "AnteaterScanService" anteater_build/app/src/main/java
           grep -R 'versionName = "23.0"' \
             anteater_build/app/build.gradle.kts
 
           echo "SOURCE VERIFICATION PASSED."
 
       # ---------------------------------------------------------
-      # Build with GitHub's installed Gradle 8.13
-      # No gradlew required
+      # Build
       # ---------------------------------------------------------
+
       - name: Build Anteater v23
         shell: bash
         run: |
-          set -e
+          set -o pipefail
 
           cd anteater_build
 
-          echo "Gradle version:"
+          echo "Gradle:"
           gradle --version
 
-          echo "Starting Android build..."
+          echo "Android SDK:"
+          echo "$ANDROID_HOME"
 
-          gradle clean :app:assembleDebug --stacktrace
+          echo "Installed Android platforms:"
+          sdkmanager --list_installed | grep "platforms;android-36" || true
+
+          echo "Starting build..."
+
+          gradle clean :app:assembleDebug \
+            --stacktrace \
+            --info \
+            2>&1 | tee ../build.log
+
+          BUILD_STATUS=${PIPESTATUS[0]}
+
+          echo ""
+          echo "================ BUILD LOG (LAST 120 LINES) ================"
+          tail -n 120 ../build.log
+          echo "============================================================="
+
+          exit $BUILD_STATUS
 
       # ---------------------------------------------------------
-      # Verify APK exists
+      # Verify APK
       # ---------------------------------------------------------
+
       - name: Verify APK
         shell: bash
         run: |
@@ -116,14 +133,10 @@ jobs:
 
           APK="anteater_build/app/build/outputs/apk/debug/app-debug.apk"
 
-          echo "Checking APK..."
-
           test -f "$APK"
 
-          echo "APK successfully created:"
+          echo "APK created successfully:"
           ls -lh "$APK"
-
-          echo "APK information:"
 
           AAPT=$(find "$ANDROID_HOME/build-tools" \
             -name aapt \
@@ -136,17 +149,11 @@ jobs:
 
           echo "$BADGING"
 
-          echo "Checking application ID..."
-
           echo "$BADGING" | grep \
             "package: name='com.example.spotvolume'"
 
-          echo "Checking version..."
-
           echo "$BADGING" | grep \
             "versionName='23.0'"
-
-          echo "Checking application name..."
 
           echo "$BADGING" | grep \
             "label='Anteater'"
@@ -154,8 +161,9 @@ jobs:
           echo "APK VERIFICATION PASSED."
 
       # ---------------------------------------------------------
-      # Prepare APK for download/release
+      # Prepare APK
       # ---------------------------------------------------------
+
       - name: Prepare release APK
         shell: bash
         run: |
@@ -167,12 +175,12 @@ jobs:
             anteater_build/app/build/outputs/apk/debug/app-debug.apk \
             release/Anteater.apk
 
-          echo "Release APK:"
           ls -lh release/Anteater.apk
 
       # ---------------------------------------------------------
-      # Upload artifact
+      # Upload APK
       # ---------------------------------------------------------
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -182,8 +190,9 @@ jobs:
           retention-days: 30
 
       # ---------------------------------------------------------
-      # Create GitHub Release
+      # GitHub Release
       # ---------------------------------------------------------
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
