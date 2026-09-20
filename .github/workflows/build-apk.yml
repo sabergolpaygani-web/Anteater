@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -23,12 +24,15 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Gradle
+      - name: Set up Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
 
-      - name: Verify Anteater v23 source
+      # ---------------------------------------------------------
+      # Extract ONLY Anteater_23_FINAL.zip
+      # ---------------------------------------------------------
+      - name: Extract Anteater v23
         shell: bash
         run: |
           set -e
@@ -42,25 +46,52 @@ jobs:
 
           unzip -q Anteater_23_FINAL.zip -d anteater_build
 
-          echo "ZIP contents:"
-          find anteater_build -maxdepth 3 -type f | sort
+          echo "Extracted files:"
+          find anteater_build -maxdepth 4 -type f | sort
+
+      # ---------------------------------------------------------
+      # Verify that the correct source was extracted
+      # ---------------------------------------------------------
+      - name: Verify Anteater v23 source
+        shell: bash
+        run: |
+          set -e
+
+          echo "Checking required project files..."
 
           test -f anteater_build/app/build.gradle.kts
           test -f anteater_build/app/src/main/AndroidManifest.xml
           test -f anteater_build/app/src/main/java/com/example/spotvolume/MainActivity.kt
 
-          echo "Checking source for Anteater features..."
+          echo "Checking Anteater branding..."
 
-          grep -R 'Anteater' anteater_build/app/src/main || true
-          grep -R 'AUTO SCAN' anteater_build/app/src/main || true
-          grep -R 'NET SPOT ACCUMULATION' anteater_build/app/src/main || true
+          grep -R "Anteater" anteater_build/app/src/main
 
-          grep -R 'AUTO SCAN' anteater_build/app/src/main/java
-          grep -R 'NET SPOT ACCUMULATION' anteater_build/app/src/main/java
-          grep -R 'AnteaterScanService' anteater_build/app/src/main/java
+          echo "Checking AUTO SCAN..."
 
-          echo "Source verification passed."
+          grep -R "AUTO SCAN" anteater_build/app/src/main/java
 
+          echo "Checking NET SPOT ACCUMULATION..."
+
+          grep -R "NET SPOT ACCUMULATION" \
+            anteater_build/app/src/main/java
+
+          echo "Checking background service..."
+
+          grep -R "AnteaterScanService" \
+            anteater_build/app/src/main/java
+
+          echo "Checking version 23.0..."
+
+          grep -R 'versionName = "23.0"' \
+            anteater_build/app/build.gradle.kts
+
+          echo "SOURCE VERIFICATION PASSED."
+
+      # ---------------------------------------------------------
+      # Build with GitHub's installed Gradle 8.13
+      # No gradlew required
+      # ---------------------------------------------------------
       - name: Build Anteater v23
         shell: bash
         run: |
@@ -68,16 +99,16 @@ jobs:
 
           cd anteater_build
 
-          if [ ! -f gradlew ]; then
-            echo "ERROR: gradlew not found inside Anteater_23_FINAL.zip"
-            exit 1
-          fi
+          echo "Gradle version:"
+          gradle --version
 
-          chmod +x gradlew
+          echo "Starting Android build..."
 
-          ./gradlew --version
-          ./gradlew clean :app:assembleDebug --stacktrace
+          gradle clean :app:assembleDebug --stacktrace
 
+      # ---------------------------------------------------------
+      # Verify APK exists
+      # ---------------------------------------------------------
       - name: Verify APK
         shell: bash
         run: |
@@ -85,22 +116,46 @@ jobs:
 
           APK="anteater_build/app/build/outputs/apk/debug/app-debug.apk"
 
+          echo "Checking APK..."
+
           test -f "$APK"
 
-          echo "APK found:"
+          echo "APK successfully created:"
           ls -lh "$APK"
 
-          echo "APK metadata:"
-          "$ANDROID_HOME/build-tools/"*/aapt dump badging "$APK" | head -20
+          echo "APK information:"
 
-          BADGING=$("$ANDROID_HOME/build-tools/"*/aapt dump badging "$APK")
+          AAPT=$(find "$ANDROID_HOME/build-tools" \
+            -name aapt \
+            | sort -V \
+            | tail -1)
 
-          echo "$BADGING" | grep 'package: name='
-          echo "$BADGING" | grep "versionName='23.0'"
-          echo "$BADGING" | grep "label='Anteater'"
+          test -n "$AAPT"
 
-          echo "APK verification passed."
+          BADGING=$("$AAPT" dump badging "$APK")
 
+          echo "$BADGING"
+
+          echo "Checking application ID..."
+
+          echo "$BADGING" | grep \
+            "package: name='com.example.spotvolume'"
+
+          echo "Checking version..."
+
+          echo "$BADGING" | grep \
+            "versionName='23.0'"
+
+          echo "Checking application name..."
+
+          echo "$BADGING" | grep \
+            "label='Anteater'"
+
+          echo "APK VERIFICATION PASSED."
+
+      # ---------------------------------------------------------
+      # Prepare APK for download/release
+      # ---------------------------------------------------------
       - name: Prepare release APK
         shell: bash
         run: |
@@ -112,15 +167,23 @@ jobs:
             anteater_build/app/build/outputs/apk/debug/app-debug.apk \
             release/Anteater.apk
 
+          echo "Release APK:"
           ls -lh release/Anteater.apk
 
+      # ---------------------------------------------------------
+      # Upload artifact
+      # ---------------------------------------------------------
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: Anteater-v23-APK
           path: release/Anteater.apk
           if-no-files-found: error
+          retention-days: 30
 
+      # ---------------------------------------------------------
+      # Create GitHub Release
+      # ---------------------------------------------------------
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
