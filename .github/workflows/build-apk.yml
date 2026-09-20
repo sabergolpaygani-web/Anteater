@@ -7,22 +7,26 @@ on:
       - "*.zip"
       - ".github/workflows/build-apk.yml"
 
+# اجازه ساخت Release توسط GitHub Actions
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
 
-      # -----------------------------
+      # =========================================
       # 1. دریافت Repository
-      # -----------------------------
+      # =========================================
       - name: Checkout repository
         uses: actions/checkout@v4
 
 
-      # -----------------------------
+      # =========================================
       # 2. Java 17
-      # -----------------------------
+      # =========================================
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -30,21 +34,22 @@ jobs:
           java-version: "17"
 
 
-      # -----------------------------
+      # =========================================
       # 3. Gradle 8.13
-      # -----------------------------
+      # =========================================
       - name: Set up Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.13"
 
 
-      # -----------------------------
+      # =========================================
       # 4. پیدا کردن ZIP پروژه
       #
-      # اول Anteater_15_FIXED.zip
-      # اگر نبود Anteater_15.zip
-      # -----------------------------
+      # Anteater_15_FIXED.zip
+      # یا
+      # Anteater_15.zip
+      # =========================================
       - name: Find and extract Anteater source
         shell: bash
         run: |
@@ -67,17 +72,21 @@ jobs:
             exit 1
           fi
 
-          echo "Using source ZIP: $ZIP"
+          echo "Using source ZIP:"
+          echo "$ZIP"
 
           rm -rf build-src
           mkdir -p build-src
 
           unzip -q "$ZIP" -d build-src
 
-          PROJECT_DIR="$(find build-src \
+          PROJECT_DIR="$(
+            find build-src \
             -type f \
             -name 'settings.gradle.kts' \
-            -print -quit | xargs -r dirname)"
+            -print -quit \
+            | xargs -r dirname
+          )"
 
           if [ -z "$PROJECT_DIR" ]; then
             echo "ERROR: settings.gradle.kts not found."
@@ -90,9 +99,9 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
 
-      # -----------------------------
-      # 5. بررسی فایل‌های پروژه
-      # -----------------------------
+      # =========================================
+      # 5. بررسی پروژه
+      # =========================================
       - name: Check project
         shell: bash
         run: |
@@ -108,9 +117,9 @@ jobs:
           echo "Project structure OK."
 
 
-      # -----------------------------
-      # 6. هماهنگ کردن JVM
-      # -----------------------------
+      # =========================================
+      # 6. تنظیم JVM روی Java 17
+      # =========================================
       - name: Fix JVM target
         shell: bash
         run: |
@@ -122,7 +131,6 @@ jobs:
           p = Path("app/build.gradle.kts")
           s = p.read_text()
 
-          # Kotlin JVM 17
           if "jvmToolchain(17)" not in s:
               s = s.replace(
                   "android {",
@@ -134,7 +142,6 @@ jobs:
                   1
               )
 
-          # Java JVM 17
           if "sourceCompatibility = JavaVersion.VERSION_17" not in s:
               s = s.replace(
                   "android {",
@@ -148,13 +155,13 @@ jobs:
 
           p.write_text(s)
 
-          print("JVM target fixed.")
+          print("JVM target configured for Java 17.")
           PY
 
 
-      # -----------------------------
+      # =========================================
       # 7. ساخت APK
-      # -----------------------------
+      # =========================================
       - name: Build debug APK
         id: gradle_build
         continue-on-error: true
@@ -170,9 +177,9 @@ jobs:
           exit ${PIPESTATUS[0]}
 
 
-      # -----------------------------
-      # 8. نمایش خطای دقیق در Summary
-      # -----------------------------
+      # =========================================
+      # 8. نمایش خطای دقیق در صورت شکست
+      # =========================================
       - name: Put Gradle error in Summary
         if: steps.gradle_build.outcome == 'failure'
         shell: bash
@@ -199,28 +206,29 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
 
-      # -----------------------------
-      # 9. اگر Build شکست خورد متوقف شود
-      # -----------------------------
+      # =========================================
+      # 9. توقف در صورت شکست Build
+      # =========================================
       - name: Stop if build failed
         if: steps.gradle_build.outcome == 'failure'
         run: exit 1
 
 
-      # -----------------------------
-      # 10. پیدا کردن APK
-      # -----------------------------
+      # =========================================
+      # 10. پیدا کردن APK ساخته شده
+      # =========================================
       - name: Prepare APK
         shell: bash
         run: |
 
           set -e
 
-          APK="$(find \
-            "$PROJECT_DIR/app/build/outputs/apk" \
+          APK="$(
+            find "$PROJECT_DIR/app/build/outputs/apk" \
             -type f \
             -name '*.apk' \
-            | head -n 1)"
+            | head -n 1
+          )"
 
           if [ -z "$APK" ]; then
             echo "ERROR: APK not found."
@@ -237,12 +245,24 @@ jobs:
           ls -lh release/Anteater.apk
 
 
-      # -----------------------------
-      # 11. قرار دادن APK در Artifacts
-      # -----------------------------
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      # =========================================
+      # 11. ساخت GitHub Release
+      # =========================================
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: Anteater-APK
-          path: release/Anteater.apk
-          if-no-files-found: error
+          tag_name: anteater-build-${{ github.run_number }}
+          name: Anteater APK Build ${{ github.run_number }}
+          body: |
+            Anteater APK
+
+            Build: ${{ github.run_number }}
+
+            Built automatically by GitHub Actions.
+
+            Download Anteater.apk below.
+          files: |
+            release/Anteater.apk
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
