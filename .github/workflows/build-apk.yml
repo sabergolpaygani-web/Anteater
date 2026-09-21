@@ -35,9 +35,9 @@ jobs:
 
 
       # ==========================================
-      # 3. Android SDK
+      # 3. Locate Android SDK
       # ==========================================
-      - name: Configure Android SDK
+      - name: Locate Android SDK
         shell: bash
         run: |
           set -eux
@@ -45,44 +45,117 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_HOME"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
 
-          sdkmanager --version
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+
+          if [ -z "$SDK" ]; then
+            echo "ERROR: Android SDK path was not found."
+            exit 1
+          fi
+
+          echo "Using SDK:"
+          echo "$SDK"
+
+          echo
+          echo "Searching for sdkmanager..."
+
+          SDKMANAGER=$(find "$SDK" \
+            -type f \
+            -name sdkmanager \
+            -perm -111 \
+            2>/dev/null \
+            | head -1)
+
+          if [ -z "$SDKMANAGER" ]; then
+
+            echo "sdkmanager was not found inside Android SDK."
+
+            echo
+            echo "SDK directory:"
+            find "$SDK" \
+              -maxdepth 5 \
+              -type f \
+              | head -200
+
+            exit 1
+          fi
+
+          SDKMANAGER_DIR="$(dirname "$SDKMANAGER")"
+
+          echo
+          echo "sdkmanager found:"
+          echo "$SDKMANAGER"
+
+          echo
+          echo "sdkmanager directory:"
+          echo "$SDKMANAGER_DIR"
+
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+
+          echo "$SDKMANAGER_DIR" >> "$GITHUB_PATH"
+
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
 
 
       # ==========================================
-      # 4. Install Android SDK 36
+      # 4. Verify sdkmanager
+      # ==========================================
+      - name: Verify sdkmanager
+        shell: bash
+        run: |
+          set -eux
+
+          echo "SDKMANAGER=$SDKMANAGER"
+
+          test -f "$SDKMANAGER"
+
+          "$SDKMANAGER" --version
+
+
+      # ==========================================
+      # 5. Install Android SDK 36
       # ==========================================
       - name: Install Android SDK 36
         shell: bash
         run: |
           set -eux
 
-          yes | sdkmanager --licenses >/dev/null || true
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
 
-          sdkmanager \
+          "$SDKMANAGER" \
             "platform-tools" \
             "platforms;android-36" \
             "build-tools;36.0.0"
 
-          yes | sdkmanager --licenses >/dev/null || true
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
 
 
       # ==========================================
-      # 5. Verify Android SDK
+      # 6. Verify Android SDK 36
       # ==========================================
       - name: Verify Android SDK
         shell: bash
         run: |
           set -eux
 
-          test -d "$ANDROID_SDK_ROOT/platforms/android-36"
-          test -d "$ANDROID_SDK_ROOT/build-tools/36.0.0"
+          echo "Android SDK:"
+          echo "$ANDROID_SDK_ROOT"
 
-          echo "Android SDK 36 OK"
-          echo "Build Tools 36.0.0 OK"
+          test -d \
+            "$ANDROID_SDK_ROOT/platforms/android-36"
+
+          test -d \
+            "$ANDROID_SDK_ROOT/build-tools/36.0.0"
+
+          test -d \
+            "$ANDROID_SDK_ROOT/platform-tools"
+
+          echo
+          echo "Android SDK 36 is ready."
 
 
       # ==========================================
-      # 6. Install Gradle 8.13
+      # 7. Gradle 8.13
       # ==========================================
       - name: Set up Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
@@ -91,7 +164,7 @@ jobs:
 
 
       # ==========================================
-      # 7. Check Anteater v24 ZIP
+      # 8. Check Anteater ZIP
       # ==========================================
       - name: Check Anteater v24 source
         shell: bash
@@ -100,11 +173,13 @@ jobs:
 
           test -f Anteater_24_FINAL.zip
 
-          echo "Anteater_24_FINAL.zip found."
+          ls -lh Anteater_24_FINAL.zip
+
+          echo "Anteater v24 source found."
 
 
       # ==========================================
-      # 8. Extract Anteater v24
+      # 9. Extract Anteater
       # ==========================================
       - name: Extract Anteater v24
         shell: bash
@@ -115,14 +190,22 @@ jobs:
 
           mkdir -p anteater-src
 
-          unzip -q Anteater_24_FINAL.zip -d anteater-src
+          unzip -q \
+            Anteater_24_FINAL.zip \
+            -d anteater-src
 
-          echo "Extracted Anteater source:"
-          find anteater-src -maxdepth 5 -type f | sort | head -250
+          echo
+          echo "Extracted files:"
+
+          find anteater-src \
+            -maxdepth 6 \
+            -type f \
+            | sort \
+            | head -300
 
 
       # ==========================================
-      # 9. Locate Android project
+      # 10. Locate Android project
       # ==========================================
       - name: Locate Android project
         shell: bash
@@ -135,11 +218,12 @@ jobs:
             | head -1)
 
           if [ -z "$APP_GRADLE" ]; then
+
             echo "ERROR:"
             echo "app/build.gradle.kts was not found."
 
             find anteater-src \
-              -maxdepth 6 \
+              -maxdepth 8 \
               -type f \
               | sort
 
@@ -148,21 +232,27 @@ jobs:
 
           PROJECT_DIR=$(dirname "$(dirname "$APP_GRADLE")")
 
-          echo "APP_GRADLE=$APP_GRADLE"
-          echo "PROJECT_DIR=$PROJECT_DIR"
+          echo
+          echo "APP_GRADLE:"
+          echo "$APP_GRADLE"
+
+          echo
+          echo "PROJECT_DIR:"
+          echo "$PROJECT_DIR"
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
 
       # ==========================================
-      # 10. Verify Anteater source
+      # 11. Verify Anteater v24
       # ==========================================
       - name: Verify Anteater v24
         shell: bash
         run: |
           set -eux
 
-          test -f "$PROJECT_DIR/app/build.gradle.kts"
+          test -f \
+            "$PROJECT_DIR/app/build.gradle.kts"
 
           test -f \
             "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
@@ -205,7 +295,7 @@ jobs:
 
 
       # ==========================================
-      # 11. Show Gradle version
+      # 12. Check Gradle
       # ==========================================
       - name: Check Gradle
         shell: bash
@@ -217,7 +307,7 @@ jobs:
 
 
       # ==========================================
-      # 12. Build APK
+      # 13. Build APK
       # ==========================================
       - name: Build Anteater v24
         shell: bash
@@ -225,8 +315,9 @@ jobs:
         run: |
           set -o pipefail
 
+          echo
           echo "========================================"
-          echo "Building Anteater v24"
+          echo "BUILDING ANTEATER v24"
           echo "========================================"
 
           gradle clean :app:assembleDebug \
@@ -236,7 +327,7 @@ jobs:
 
 
       # ==========================================
-      # 13. Display build log
+      # 14. Show build log
       # ==========================================
       - name: Show build log
         if: always()
@@ -246,23 +337,24 @@ jobs:
 
             echo
             echo "========================================"
-            echo "LAST 250 LINES OF BUILD LOG"
+            echo "LAST 300 LINES OF BUILD LOG"
             echo "========================================"
 
-            tail -n 250 build.log
+            tail -n 300 build.log
 
           fi
 
 
       # ==========================================
-      # 14. Find APK
+      # 15. Find APK
       # ==========================================
       - name: Find APK
         shell: bash
         run: |
           set -eux
 
-          APK=$(find "$PROJECT_DIR/app/build/outputs/apk" \
+          APK=$(find \
+            "$PROJECT_DIR/app/build/outputs/apk" \
             -type f \
             -name "*.apk" \
             | head -1)
@@ -272,8 +364,10 @@ jobs:
             echo "ERROR: APK was not generated."
 
             echo
-            echo "Build directory:"
-            find "$PROJECT_DIR/app/build" \
+            echo "Build output:"
+
+            find \
+              "$PROJECT_DIR/app/build" \
               -type f \
               | sort \
               | tail -200
@@ -281,6 +375,7 @@ jobs:
             exit 1
           fi
 
+          echo
           echo "APK FOUND:"
           echo "$APK"
 
@@ -291,23 +386,25 @@ jobs:
 
 
       # ==========================================
-      # 15. Verify APK
+      # 16. Verify APK
       # ==========================================
       - name: Verify APK
         shell: bash
         run: |
           set -eux
 
-          test -f release/Anteater-v24.apk
+          test -f \
+            release/Anteater-v24.apk
 
-          ls -lh release/Anteater-v24.apk
+          ls -lh \
+            release/Anteater-v24.apk
 
           echo
           echo "APK successfully generated."
 
 
       # ==========================================
-      # 16. Upload APK artifact
+      # 17. Upload APK artifact
       # ==========================================
       - name: Upload APK
         if: success()
@@ -320,14 +417,15 @@ jobs:
 
 
       # ==========================================
-      # 17. Create GitHub Release
+      # 18. Create GitHub Release
       # ==========================================
       - name: Create GitHub Release
         if: success()
         uses: softprops/action-gh-release@v2
         with:
           tag_name: anteater-v24-${{ github.run_number }}
-          name: Anteater v24 — Build ${{ github.run_number }}
+
+          name: Anteater v24 - Build ${{ github.run_number }}
 
           body: |
             Anteater v24 Android APK
@@ -335,11 +433,11 @@ jobs:
             Version:
             24.0
 
-            Build:
-            Android SDK 36
-            Build Tools 36.0.0
-            Java 17
-            Gradle 8.13
+            Build environment:
+            - Android SDK 36
+            - Build Tools 36.0.0
+            - Java 17
+            - Gradle 8.13
 
             Features:
             - Anteater branding
