@@ -1,289 +1,366 @@
-name: Build Anteater v23
+
+Yesterday 10:09 PM
+
+بله. با توجه به وضعیت فعلی Anteater و اینکه شرطت این است که واقعاً رایگان باشد و از داخل ایران دردسر کمتری داشته باشد، من سه گزینه را این‌طور بررسی می‌کنم:
+
+گزینه	هزینه واقعی	وابستگی به سرویس خارجی	مناسب Anteater	فارسی	کار روی کل پروژه
+GitHub Copilot Free	رایگان	متوسط	⭐⭐⭐⭐	خوب	بله
+OpenCode + Ollama	کاملاً رایگان در حالت Local	بسیار کم	⭐⭐⭐⭐⭐	خوب	بله
+Qwen Code + مدل Local	کاملاً رایگان در حالت Local	بسیار کم	⭐⭐⭐⭐⭐	بسیار خوب	بله
+1. GitHub Copilot Free
+برای شرایط فعلی تو، ساده‌ترین گزینه است چون Anteater همین الان روی GitHub قرار دارد.
+
+GitHub در پلن Free فعلاً ۲۰۰۰ code completion در ماه و دسترسی محدود به Chat/Agent می‌دهد و نیاز به کارت بانکی ندارد. 
+
+مزیت مهم برای Anteater این است که مستقیماً با Repository کار می‌کند و می‌تواند کد، Workflow، GitHub Actions و فایل‌های پروژه را بررسی کند.
+
+نقطه ضعف: رایگان بودنش محدودیت دارد و دسترسی آن از ایران ممکن است بسته به وضعیت اتصال به GitHub/GitHub services متفاوت باشد. من نمی‌توانم تضمین کنم که بدون VPN همیشه در ایران در دسترس باشد.
+
+برای تو: گزینه راحت برای شروع.
+
+2. OpenCode + Ollama
+این یکی برای پروژه Anteater خیلی جالب‌تر است.
+
+OpenCode یک coding agent متن‌باز است و می‌تواند مستقیماً با مدل‌های Local کار کند. مستندات رسمی OpenCode اتصال مستقیم به Ollama را پشتیبانی می‌کنند. 
+
+Ollama هم مدل را روی کامپیوتر خودت اجرا می‌کند؛ در حالت Local نه API پولی لازم داری و نه درخواست‌هایت برای سرویس ابری ارسال می‌شود. مدل‌های Local از نظر هزینه استفاده رایگان‌اند. 
+
+برای کدنویسی حتی خود Ollama مدل‌هایی مثل Qwen3-Coder را به‌عنوان مدل مناسب coding معرفی می‌کند. 
+
+ساختار پیشنهادی:
+
+OpenCode → Ollama → Qwen3-Coder
+
+یعنی:
+
+Anteater GitHub
+      ↓
+   OpenCode
+      ↓
+    Ollama
+      ↓
+  Qwen3-Coder
+مزیت بزرگ برای ایران این است که بعد از نصب مدل، اصلاً به API خارجی برای هر سؤال وابسته نیستی.
+
+عیب اصلی: برای مدل‌های بزرگ، کامپیوتر نسبتاً قدرتمند لازم داری.
+
+3. Qwen Code + مدل Local
+Qwen Code برای کارهای Agentic مثل:
+
+پیدا کردن خطای Build
+
+اصلاح Kotlin
+
+اصلاح Gradle
+
+بررسی AndroidManifest
+
+بررسی GitHub Actions
+
+تغییر چند فایل همزمان
+
+Refactor
+
+اجرای دستورات پروژه
+
+طراحی شده است. خود Qwen آن را یک coding agent متن‌باز معرفی می‌کند. 
+
+اما یک نکته خیلی مهم: قبلاً Qwen Code را به‌عنوان «کاملاً رایگان» معرفی کرده بودیم؛ این دیگر دقیق نیست. Qwen OAuth Free در ۱۵ آوریل ۲۰۲۶ متوقف شده است. 
+
+بنابراین برای اینکه واقعاً صفر هزینه داشته باشی، باید Qwen Code را با یک مدل Local مثل Qwen3-Coder از طریق Ollama اجرا کنی.
+
+این حالت:
+
+Qwen Code
+    ↓
+Ollama
+    ↓
+Qwen3-Coder
+کاملاً Local است و برای ایران از نظر وابستگی به سرویس‌های تحریم‌شده/مسدودشده، گزینه بسیار مناسبی است.
+
+برای خود Anteater من این ساختار را پیشنهاد می‌کنم
+اگر بخواهیم واقعاً بدون پرداخت پول روی Anteater کار کنیم:
+
+مسیر اصلی
+OpenCode + Ollama + Qwen3-Coder
+
+چون OpenCode می‌تواند کل پروژه را به‌صورت Agent بررسی کند و Ollama مدل را Local اجرا می‌کند. 
+
+مسیر دوم
+GitHub Copilot Free
+
+برای کارهای سریع داخل GitHub و تکمیل کد. فعلاً ۲۰۰۰ completion ماهانه دارد. 
+
+مسیر سوم
+Qwen Code + Ollama + Qwen3-Coder
+
+اگر بخواهی یک Agent تخصصی‌تر برای دستکاری چند فایل پروژه و رفع خطاهای Gradle/Android داشته باشی.
+
+یک نکته مهم درباره Gemini
+Gemini Code Assist Free را دیگر در این فهرست قرار نمی‌دهم. چون وضعیت آن تغییر کرده و Google اعلام کرده حساب‌های مصرف‌کننده Gemini Code Assist از ۱۸ ژوئن ۲۰۲۶ دیگر در IDE/CLI درخواست‌ها را پردازش نمی‌کنند. 
+
+پس توصیه قدیمی که «Gemini Code Assist رایگان» را به‌عنوان گزینه اصلی معرفی می‌کرد، برای امروز دیگر معتبر نیست.
+
+جمع‌بندی برای تو
+اگر بخواهم فقط یک مسیر کاملاً رایگان و کم‌وابسته به محدودیت‌های ایران برای Anteater انتخاب کنم:
+
+OpenCode + Ollama + Qwen3-Coder
+
+و اگر کامپیوترت برای اجرای مدل Local ضعیف باشد، برویم سراغ GitHub Copilot Free.
+
+اگر مشخصات کامپیوترت را بدهی (RAM، CPU و کارت گرافیک)، می‌توانم دقیق بگویم چه مدل Qwen3-Coder را می‌توانی کاملاً رایگان روی سیستم خودت اجرا کنی و حتی دستور نصبش را مرحله‌به‌مرحله برای Anteater بدهم.
+
+
+من با همین گوشی میخام کار. ‌رو ادامه بدم
+
+آها، پس شرایط کاملاً فرق می‌کند. اگر قرار است فقط با همین گوشی اندرویدی ادامه بدهی، گزینه‌های Local مثل Ollama را فعلاً کنار می‌گذاریم. برای Anteater، بهترین مسیر موبایلی این است:
+
+۱. Qwen Coder — گزینه مناسب برای کار اصلی کدنویسی
+Qwen Coder
+
+نسخه وب Qwen Coder صراحتاً برای دستگاه‌های موبایل طراحی شده و امکان کار با کد و Export مستقیم به GitHub دارد. 
+
+برای کارهایی مثل:
+
+اصلاح build.gradle
+
+اصلاح build-apk.yml
+
+بررسی خطای GitHub Actions
+
+تغییر Kotlin
+
+بررسی ساختار پروژه Anteater
+
+تولید فایل کامل
+
+مناسب است.
+
+۲. GitHub + Copilot
+GitHub Mobile
+
+این گزینه برای تو خیلی کاربردی است چون پروژه همین حالا روی GitHub است. GitHub Mobile روی Android وجود دارد و می‌توانی Repository، فایل‌ها، Pull Requestها و حتی Copilot Chat را از گوشی مدیریت کنی. 
+
+حتی ویرایش فایل‌های Workflow هم از موبایل امکان‌پذیر است. 
+
+۳. خود GitHub در Chrome + github.dev
+اگر نخواهی برنامه دیگری نصب کنی، در Chrome می‌توانی Repository را با github.dev باز کنی.
+
+این ویرایشگر:
+
+رایگان است
+
+داخل مرورگر اجرا می‌شود
+
+syntax highlighting دارد
+
+جست‌وجوی کد دارد
+
+تغییرات را commit می‌کند. 
+
+اما برای Anteater من این ترکیب را پیشنهاد می‌کنم
+📱 گوشی Android
+       │
+       ├── Qwen Coder
+       │      ↓
+       │   تولید/اصلاح کد
+       │
+       ├── GitHub Mobile
+       │      ↓
+       │   Repository + Actions
+       │
+       └── Chrome / github.dev
+              ↓
+          ویرایش فایل‌ها
+              ↓
+        GitHub Actions
+              ↓
+          ساخت APK
+یعنی اصلاً لازم نیست کامپیوتر داشته باشی.
+
+و اتفاقاً مشکل فعلی Anteater هم همین‌جا قابل ادامه دادن است: تو Workflow را از گوشی تغییر می‌دهی، GitHub Actions روی سرور خودش APK را می‌سازد، و تو APK را با گوشی دانلود و نصب می‌کنی. GitHub Mobile امکان مشاهده Workflowها و اجرای/بررسی نتایج Actions را هم فراهم کرده است. 
+
+اگر بخواهی، از اینجا به بعد می‌توانیم کل توسعه Anteater را فقط با همین گوشی ادامه بدهیم؛ من هم کدهای کامل را طوری می‌دهم که مستقیماً بتوانی در GitHub موبایل Copy/Paste کنی.
+
+
+پس کد ها رو تغییر بده تا ادامه راه و بریم
+
+حتماً. من کدها را برای ادامه کار با همین گوشی تغییر دادم.
+
+مشکل اصلی Build #44 را هم هدف گرفتم: دیگر از android-actions/setup-android استفاده نمی‌کنیم؛ Workflow مستقیماً از SDK موجود روی سرور GitHub و sdkmanager استفاده می‌کند تا همان مرحله‌ای که در عکس قرمز شده بود دور زده شود.
+
+فایل جدید Anteater v24
+دانلود Anteater_24_FINAL.zip
+
+Workflow جدید
+دانلود build-apk-v24.yml
+
+در v24:
+
+نسخه برنامه: 24.0
+
+versionCode: 180
+
+Anteater و آیکون حفظ شده
+
+AUTO SCAN حفظ شده
+
+Background Scan حفظ شده
+
+Boot/Restart Scan حفظ شده
+
+Net Spot Accumulation حفظ شده
+
+Circulating Supply حفظ شده
+
+CEX + DEX Spot-only حفظ شده
+
+Android SDK 36
+
+Java 17
+
+Gradle 8.13
+
+خطای مرحله Set up Android SDK قبلی حذف شده
+
+در صورت خطای Build، لاگ Gradle ذخیره و نمایش داده می‌شود.
+
+الان روی گوشی چه کار کن
+در GitHub:
+
+فایل Anteater_23_FINAL.zip قبلی را حذف کن.
+
+Anteater_24_FINAL.zip را در ریشه Repository آپلود کن.
+
+فایل build-apk.yml فعلی را با build-apk-v24.yml جایگزین کن و اسمش را دقیقاً بگذار:
+build-apk.yml
+
+برو به Actions → Build Anteater v24 → Run workflow.
+
+فعلاً هیچ فایل دیگری را تغییر نده.
+
+اگر این Build موفق شود، مرحله بعدی‌مان دیگر ساخت APK نیست؛ می‌رویم سراغ بررسی خود Anteater و درست‌کردن دقت محاسبه Buy/Sell و Supply تا برنامه واقعاً همان چیزی را که از ابتدا می‌خواستیم محاسبه کند.
+
+
+build-apk-v24.yml
+Code
+
+
+No file chosen
+Library
+/
+build-apk-v24.yml
+
+
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+name: Build Anteater v24
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+  push:
+    paths:
+      - "Anteater_24_FINAL.zip"
+      - ".github/workflows/build-apk.yml"
 
 permissions:
   contents: write
 
+concurrency:
+  group: anteater-build
+  cancel-in-progress: true
+
 jobs:
   build:
-    name: Build Anteater v23
+    name: Build Anteater v24
     runs-on: ubuntu-latest
 
     steps:
-
-      # --------------------------------------------------
-      # 1. Checkout
-      # --------------------------------------------------
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
-      # --------------------------------------------------
-      # 2. Java 17
-      # --------------------------------------------------
       - name: Set up JDK 17
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
-      # --------------------------------------------------
-      # 3. Android SDK
-      # --------------------------------------------------
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
-        with:
-          packages: 'platform-tools'
-
-      # --------------------------------------------------
-      # 4. Install required Android SDK packages
-      # --------------------------------------------------
-      - name: Install Android SDK 36
+      - name: Prepare Android SDK
         shell: bash
         run: |
-          set -eux
+          set -euo pipefail
 
-          yes | sdkmanager --licenses >/dev/null || true
+          echo "ANDROID_HOME=${ANDROID_HOME:-}"
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-}"
 
-          sdkmanager \
-            "platforms;android-36" \
-            "build-tools;36.0.0" \
-            "platform-tools"
-
-          yes | sdkmanager --licenses >/dev/null || true
-
-      # --------------------------------------------------
-      # 5. Verify Android SDK
-      # --------------------------------------------------
-      - name: Verify Android SDK
-        shell: bash
-        run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-
-          sdkmanager --list_installed | grep -E \
-            "platform-tools|platforms;android-36|build-tools;36.0.0" \
-            || true
-
-          test -d "$ANDROID_SDK_ROOT/platforms/android-36"
-          test -d "$ANDROID_SDK_ROOT/build-tools/36.0.0"
-
-          echo "Android SDK 36 is ready."
-
-      # --------------------------------------------------
-      # 6. Gradle 8.13
-      # --------------------------------------------------
-      - name: Set up Gradle 8.13
-        uses: gradle/actions/setup-gradle@v6
-        with:
-          gradle-version: '8.13'
-
-      # --------------------------------------------------
-      # 7. Prepare workspace
-      # --------------------------------------------------
-      - name: Prepare workspace
-        shell: bash
-        run: |
-          set -eux
-
-          rm -rf anteater-src
-
-          mkdir -p anteater-src
-
-          test -f Anteater_23_FINAL.zip
-
-          unzip -q Anteater_23_FINAL.zip -d anteater-src
-
-          echo "Extracted files:"
-          find anteater-src -maxdepth 3 -type f | sort | head -200
-
-      # --------------------------------------------------
-      # 8. Locate Android project
-      # --------------------------------------------------
-      - name: Locate Anteater Android project
-        shell: bash
-        run: |
-          set -eux
-
-          APP_GRADLE=$(find anteater-src -type f \
-            -path "*/app/build.gradle.kts" \
-            | head -1)
-
-          if [ -z "$APP_GRADLE" ]; then
-            echo "ERROR: app/build.gradle.kts not found."
-            find anteater-src -maxdepth 5 -type f | sort
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          if [ -z "$SDK_ROOT" ]; then
+            echo "ERROR: Android SDK path was not provided by the runner."
             exit 1
           fi
 
-          PROJECT_DIR=$(dirname "$(dirname "$APP_GRADLE")")
-
-          echo "APP_GRADLE=$APP_GRADLE"
-          echo "PROJECT_DIR=$PROJECT_DIR"
-
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-
-      # --------------------------------------------------
-      # 9. Verify Anteater v23 source
-      # --------------------------------------------------
-      - name: Verify Anteater v23 source
-        shell: bash
-        run: |
-          set -eux
-
-          test -f "$PROJECT_DIR/app/build.gradle.kts"
-          test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/spotvolume/MainActivity.kt"
-
-          echo
-          echo "Checking version..."
-
-          grep -n "versionName" \
-            "$PROJECT_DIR/app/build.gradle.kts" || true
-
-          echo
-          echo "Checking Anteater branding..."
-
-          grep -Rni "Anteater" \
-            "$PROJECT_DIR/app/src/main" \
-            | head -30 || true
-
-          echo
-          echo "Checking AUTO SCAN..."
-
-          grep -Rni "AUTO SCAN" \
-            "$PROJECT_DIR/app/src/main" \
-            | head -20 || true
-
-          echo
-          echo "Checking NET SPOT ACCUMULATION..."
-
-          grep -Rni "NET SPOT ACCUMULATION" \
-            "$PROJECT_DIR/app/src/main" \
-            | head -20 || true
-
-          echo
-          echo "Anteater v23 source verification completed."
-
-      # --------------------------------------------------
-      # 10. Check Gradle project
-      # --------------------------------------------------
-      - name: Verify Gradle project
-        shell: bash
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          set -eux
-
-          gradle --version
-
-          echo
-          echo "Gradle files:"
-          find . -maxdepth 3 -type f \
-            \( -name "settings.gradle*" \
-            -o -name "build.gradle*" \
-            -o -name "gradle.properties" \) \
-            | sort
-
-      # --------------------------------------------------
-      # 11. Build APK
-      # --------------------------------------------------
-      - name: Build Anteater v23
-        shell: bash
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          set -o pipefail
-
-          echo "Starting Anteater v23 build..."
-
-          gradle clean :app:assembleDebug \
-            --stacktrace \
-            --info \
-            2>&1 | tee "$GITHUB_WORKSPACE/build.log"
-
-      # --------------------------------------------------
-      # 12. Show build log if something failed
-      # --------------------------------------------------
-      - name: Show build log
-        if: always()
-        shell: bash
-        run: |
-          if [ -f build.log ]; then
-            echo "================ BUILD LOG ================"
-            tail -n 200 build.log
-            echo "==========================================="
-          fi
-
-      # --------------------------------------------------
-      # 13. Verify APK
-      # --------------------------------------------------
-      - name: Verify APK
-        shell: bash
-        run: |
-          set -eux
-
-          APK=$(find "$PROJECT_DIR/app/build/outputs/apk" \
-            -type f \
-            -name "*.apk" \
-            | head -1)
-
-          if [ -z "$APK" ]; then
-            echo "ERROR: APK was not generated."
-            find "$PROJECT_DIR/app/build" -type f | sort | tail -100
-            exit 1
-          fi
-
-          echo "APK found:"
-          echo "$APK"
-
-          mkdir -p "$GITHUB_WORKSPACE/release"
-
-          cp "$APK" \
-            "$GITHUB_WORKSPACE/release/Anteater-v23.apk"
-
-          echo
-          echo "APK information:"
-
-          if command -v aapt >/dev/null 2>&1; then
-            aapt dump badging "$APK" | head -20
+          if [ -x "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+            SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          elif [ -x "$SDK_ROOT/cmdline-tools/bin/sdkmanager" ]; then
+            SDKMANAGER="$SDK_ROOT/cmdline-tools/bin/sdkmanager"
           else
-            echo "aapt not directly available; APK existence verified."
+            SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -path '*/bin/sdkmanager' -print -quit 2>/dev/null || true)"
           fi
 
-      # --------------------------------------------------
-      # 14. Upload APK as GitHub Actions artifact
-      # --------------------------------------------------
-      - name: Upload APK artifact
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Anteater-v23-APK
-          path: release/Anteater-v23.apk
-          if-no-files-found: error
-          retention-days: 30
-
-      # --------------------------------------------------
-      # 15. Create GitHub Release
-      # --------------------------------------------------
-      - name: Create GitHub Release
-        if: success()
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: anteater-v23-${{ github.run_number }}
-          name: Anteater v23 Build ${{ github.run_number }}
-          body: |
-            Anteater v23 Android APK
-
-            Features included in the source:
-            - Anteater branding
-            - AUTO SCAN
-            - Background scanning
-            - NET SPOT ACCUMULATION
-            - CEX + DEX
-            - Spot-only accumulation detection
-            - Android 36 build
-          files: |
-            release/Anteater-v23.apk
-          generate_release_notes: false
+          if [ -z "$SDKMANAGER" ] || [ ! -x "$SDKMANAGER" ]; then
+            echo "ERROR: sdkmanager not found under $SDK_ROOT/cmdline-tools"
+            find "$SDK_ROOT/cmdline-tools" -maxdepth 4 -type f 2>/dev/null | head -100 || true
