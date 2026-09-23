@@ -1,1 +1,188 @@
 
+name: Build Anteater v29
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "Anteater_29_FIXED.zip"
+      - ".github/workflows/build-apk-v29.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+
+      - name: Locate Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+
+          SDKMANAGER="$(find "$SDK" \
+            -type f \
+            -name sdkmanager \
+            -perm -111 \
+            2>/dev/null | head -1)"
+
+          test -n "$SDKMANAGER"
+
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+          echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
+
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+
+          "$SDKMANAGER" \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0"
+
+      - name: Verify source ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f "Anteater_29_FIXED.zip"
+
+          unzip -tq "Anteater_29_FIXED.zip"
+
+          echo "Anteater_29_FIXED.zip integrity: OK"
+
+      - name: Extract source
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf anteater-src
+          mkdir -p anteater-src
+
+          unzip -q "Anteater_29_FIXED.zip" -d anteater-src
+
+          PROJECT_DIR="$(
+            find anteater-src \
+              -type f \
+              -name settings.gradle.kts \
+              -print -quit |
+            xargs -r dirname
+          )"
+
+          test -n "$PROJECT_DIR"
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+          test -f "$PROJECT_DIR/app/build.gradle.kts"
+          test -f "$PROJECT_DIR/settings.gradle.kts"
+          test -f "$PROJECT_DIR/build.gradle.kts"
+
+          test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/spotvolume/MainActivity.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/spotvolume/ScanRepository.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/spotvolume/SecretStore.kt"
+
+      - name: Verify v29
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          grep -q 'versionName = "29.0"' \
+            "$PROJECT_DIR/app/build.gradle.kts"
+
+          grep -q 'versionCode = 202' \
+            "$PROJECT_DIR/app/build.gradle.kts"
+
+          grep -q 'jvmToolchain(17)' \
+            "$PROJECT_DIR/app/build.gradle.kts"
+
+          grep -q 'sourceCompatibility = JavaVersion.VERSION_17' \
+            "$PROJECT_DIR/app/build.gradle.kts"
+
+          grep -q 'targetCompatibility = JavaVersion.VERSION_17' \
+            "$PROJECT_DIR/app/build.gradle.kts"
+
+          echo "v29 configuration: OK"
+
+      - name: Build Anteater v29
+        shell: bash
+        run: |
+          set -o pipefail
+
+          cd "$PROJECT_DIR"
+
+          gradle clean :app:assembleDebug \
+            --no-daemon \
+            --stacktrace \
+            2>&1 | tee "$GITHUB_WORKSPACE/gradle.log"
+
+      - name: Show build diagnostics
+        if: always()
+        shell: bash
+        run: |
+          echo "===== Gradle log ====="
+
+          if [ -f gradle.log ]; then
+            tail -n 300 gradle.log
+          else
+            echo "No gradle.log found."
+          fi
+
+      - name: Find APK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APK="$(
+            find "$PROJECT_DIR/app/build/outputs/apk" \
+              -type f \
+              -name "*.apk" \
+              -print -quit
+          )"
+
+          test -n "$APK"
+
+          mkdir -p release
+
+          cp "$APK" release/Anteater-v29.apk
+
+          echo "APK created successfully:"
+          ls -lh release/Anteater-v29.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Anteater-v29-APK
+          path: release/Anteater-v29.apk
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: anteater-v29-${{ github.run_number }}
+          name: Anteater v29
+          files: release/Anteater-v29.apk
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
